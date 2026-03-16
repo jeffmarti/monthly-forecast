@@ -2,7 +2,7 @@ name: Daily data refresh + deploy
 
 on:
   schedule:
-    - cron: '30 10 * * *'   # 6:00 UTC = 10pm/11pm PST/PDT - adjust to taste
+    - cron: '0 6 * * *'   # 6:00 UTC = 10pm/11pm PST/PDT - adjust to taste
   workflow_dispatch:       # allows manual trigger from Actions tab
 
 permissions:
@@ -69,10 +69,8 @@ jobs:
       # -- 6. Run data pipeline -------------------------------------------------
       - name: Refresh NWRFC forecast data
         run: |
-          Rscript -e "
-            .libPaths(c(Sys.getenv('R_LIBS_USER'), .libPaths()))
-            source('update_pipeline.R')
-          "
+          export R_LIBS_USER="${R_LIBS_USER}"
+          Rscript update_pipeline.R
 
       # -- 7. Commit updated data files -----------------------------------------
       # Uses fetch + reset --soft so freshly-written files are never treated
