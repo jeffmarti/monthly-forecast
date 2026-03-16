@@ -108,7 +108,7 @@ jobs:
             )
             rsconnect::deployApp(
               appDir         = '.',
-              appName        = 'nwrfc-forecasts',
+              appName        = 'MonthlyForecasts',
               account        = 'waterwater',
               server         = 'shinyapps.io',
               forceUpdate    = TRUE,
