@@ -37,7 +37,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.R_LIBS_USER }}
-          key: r-pkgs-${{ runner.os }}-v1
+          key: r-pkgs-${{ runner.os }}-v2
           restore-keys: r-pkgs-
 
       # -- 4. System libraries --------------------------------------------------
@@ -55,7 +55,7 @@ jobs:
           mkdir -p "$R_LIBS_USER"
           Rscript -e "
             .libPaths(c(Sys.getenv('R_LIBS_USER'), .libPaths()))
-            pkgs <- c('shiny', 'readr', 'dplyr', 'tidyr', 'stringr',
+            pkgs <- c('shiny', 'readr', 'dplyr', 'tidyr', 'stringr', 'lubridate',
                       'DT', 'rsconnect')
             new <- pkgs[!(pkgs %in% rownames(installed.packages()))]
             if (length(new)) {
