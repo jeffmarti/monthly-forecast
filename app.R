@@ -88,29 +88,62 @@ obs_header_js <- sprintf(
 # -------------------------
 
 ui <- fluidPage(
-
+  
   titlePanel(HTML(paste0(
     "Monthly Forecasted Runoff as % of Normal for Washington State Watersheds<br>",
     "<span style='font-size:14px; font-weight:normal; color:#555;'>",
     "Data: Northwest River Forecast Center &mdash; Data as of: ", last_updated,
     "</span>"
   ))),
-
+  
   tags$style(HTML("
 
-    /* ---- Fixed-width sidebar -------------------------------------------- */
+    /* ---- Sidebar: fixed width when expanded, zero when collapsed ---------- */
     @media (min-width: 768px) {
       .col-sm-3 {
         width:     265px !important;
         flex:      0 0 265px !important;
         max-width: 265px !important;
+        transition: width 0.25s ease, max-width 0.25s ease;
+        overflow:  hidden;
       }
       .col-sm-9 {
         width:     calc(100% - 285px) !important;
         flex:      0 0 calc(100% - 285px) !important;
         max-width: calc(100% - 285px) !important;
+        transition: width 0.25s ease, max-width 0.25s ease;
+      }
+      .sidebar-collapsed .col-sm-3 {
+        width:     0px !important;
+        flex:      0 0 0px !important;
+        max-width: 0px !important;
+        padding:   0 !important;
+      }
+      .sidebar-collapsed .col-sm-9 {
+        width:     100% !important;
+        flex:      0 0 100% !important;
+        max-width: 100% !important;
       }
     }
+
+    /* ---- Chevron toggle button -------------------------------------------- */
+    #sidebarToggle {
+      position:      fixed;
+      top:           120px;
+      left:          265px;
+      z-index:       9999;
+      background:    #4a7fb5;
+      color:         white;
+      border:        none;
+      border-radius: 0 4px 4px 0;
+      padding:       6px 5px;
+      cursor:        pointer;
+      font-size:     14px;
+      line-height:   1;
+      width:         18px;
+      transition:    left 0.25s ease;
+    }
+    #sidebarToggle:hover { background: #2c4f70; }
 
     /* ---- Compact DT table rows -------------------------------------------- */
     #forecastTable table.dataTable thead th,
@@ -142,11 +175,29 @@ ui <- fluidPage(
     .explain-panel p { margin-bottom: 6px; }
 
   ")),
-
+  
+  # Chevron toggle button (sits outside sidebarLayout so it overlays freely)
+  tags$button(
+    id       = "sidebarToggle",
+    HTML("&#x276E;"),   # left-pointing chevron; flips to right when collapsed
+    onclick  = "
+      var el  = document.querySelector('.row');
+      var btn = document.getElementById('sidebarToggle');
+      el.classList.toggle('sidebar-collapsed');
+      if (el.classList.contains('sidebar-collapsed')) {
+        btn.innerHTML = '&#x276F;';
+        btn.style.left = '0px';
+      } else {
+        btn.innerHTML = '&#x276E;';
+        btn.style.left = '265px';
+      }
+    "
+  ),
+  
   sidebarLayout(
     sidebarPanel(
       width = 3,
-
+      
       radioButtons(
         "viewMode", "View:",
         choices  = c("Water Supply Season (Apr\u2013Sep)" = "runoff",
@@ -154,39 +205,39 @@ ui <- fluidPage(
         selected = "runoff",
         inline   = TRUE
       ),
-
+      
       hr(style = "margin: 8px 0;"),
       h4("Select WRIA Basin(s)"),
-
+      
       checkboxGroupInput("wriaFilter", NULL,
                          choices  = wria_list,
                          selected = wria_list),
-
+      
       actionButton("selectAll",      "Select All"),
       actionButton("clearSelection", "Clear Selection"),
       br(), br(),
-
+      
       downloadButton("downloadData", "Download Table (CSV)"),
-
+      
       div(class = "explain-panel",
-        h5("About This App"),
-        p("Monthly streamflow forecasts from NWRFC for Washington State WRIAs."),
-        p("Values shown as % of the 1991\u20132020 normal.
+          h5("About This App"),
+          p("Monthly streamflow forecasts from NWRFC for Washington State WRIAs."),
+          p("Values shown as % of the 1991\u20132020 normal.
           100% = average; above 100% = above normal; below 100% = below normal."),
-        p("The Washington Dept. of Ecology uses 75% of normal as a
+          p("The Washington Dept. of Ecology uses 75% of normal as a
           drought indicator threshold."),
-        p(tags$em("Italicized column headers"), " indicate months where observed
+          p(tags$em("Italicized column headers"), " indicate months where observed
           (actual) runoff has been substituted for the forecast value."),
-        tags$hr(style = "margin: 8px 0;"),
-        p(tags$b("Source: "),
-          tags$a("NOAA Northwest River Forecast Center",
-                 href = "https://www.nwrfc.noaa.gov", target = "_blank")),
-        p("Contact: jeffjmarti at gmail.com; no NOAA/NWRFC affiliation."),
-        p(tags$b("Note: "),
-          "Data refreshed daily. Download saves the currently displayed table.")
+          tags$hr(style = "margin: 8px 0;"),
+          p(tags$b("Source: "),
+            tags$a("NOAA Northwest River Forecast Center",
+                   href = "https://www.nwrfc.noaa.gov", target = "_blank")),
+          p("Contact: jeffjmarti at gmail.com; no NOAA/NWRFC affiliation."),
+          p(tags$b("Note: "),
+            "Data refreshed daily. Download saves the currently displayed table.")
       )
     ),
-
+    
     mainPanel(
       br(),
       DTOutput("forecastTable")
@@ -199,7 +250,7 @@ ui <- fluidPage(
 # -------------------------
 
 server <- function(input, output, session) {
-
+  
   # -- Sidebar buttons --------------------------------------------------------
   observeEvent(input$selectAll, {
     updateCheckboxGroupInput(session, "wriaFilter", selected = wria_list)
@@ -207,37 +258,37 @@ server <- function(input, output, session) {
   observeEvent(input$clearSelection, {
     updateCheckboxGroupInput(session, "wriaFilter", selected = character(0))
   })
-
+  
   # ── Shared reactive: filtered + column-selected wide table ─────────────────
   display_tbl <- reactive({
     req(input$wriaFilter)
-
+    
     mon_cols <- if (input$viewMode == "runoff") {
       intersect(RUNOFF_MONTHS, months_available)
     } else {
       months_available   # already in WY order from pipeline
     }
-
+    
     forecast_wide %>%
       filter(WRIA_NM %in% input$wriaFilter) %>%
       arrange(WRIA_NR, Name) %>%
       mutate(WRIA = sprintf("%02d \u2013 %s", WRIA_NR, WRIA_NM)) %>%
       select(WRIA, Name, all_of(mon_cols))
   })
-
+  
   # ── Tab 1: DT forecast table ───────────────────────────────────────────────
   # formatPercentage multiplies raw 0-1 values by 100 and appends "%".
   # styleInterval cuts still operate on the raw 0-1 scale underneath.
   output$forecastTable <- renderDT({
     tbl      <- display_tbl()
     mon_cols <- intersect(names(tbl), WY_MONTH_LEVELS)
-
+    
     if (nrow(tbl) == 0) return(datatable(tbl, rownames = FALSE))
-
+    
     # 0-based column indices for DT columnDefs
     # Columns: WRIA (0), Name (1), months (2+)
     mon_idx_0 <- which(names(tbl) %in% WY_MONTH_LEVELS) - 1L
-
+    
     datatable(
       tbl,
       rownames = FALSE,
@@ -246,13 +297,10 @@ server <- function(input, output, session) {
         pageLength     = nrow(tbl),
         dom            = "ti",
         scrollX        = TRUE,
-        autoWidth      = FALSE,
+        autoWidth      = TRUE,
         headerCallback = JS(obs_header_js),
         columnDefs     = list(
-          list(className = "dt-center", targets = mon_idx_0),
-          list(width = "45px",  targets = mon_idx_0),
-          list(width = "140px", targets = 0L),   # WRIA
-          list(width = "150px", targets = 1L)    # Name
+          list(className = "dt-center", targets = mon_idx_0)
         )
       )
     ) %>%
@@ -263,7 +311,7 @@ server <- function(input, output, session) {
         color           = styleInterval(COLOR_CUTS, FONT_COLORS)
       )
   })
-
+  
   # ── Download ────────────────────────────────────────────────────────────────
   output$downloadData <- downloadHandler(
     filename = function() {
