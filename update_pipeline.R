@@ -314,7 +314,7 @@ write_csv(month_meta, "data/month_meta.csv")
 cat("  Wrote: data/month_meta.csv\n")
 
 # Timestamp
-ts <- format(Sys.time(), "%Y-%m-%d %H:%M UTC", tz = "UTC")
+ts <- format(Sys.time(), "%Y-%m-%d %H:%M %Z", tz = "America/Los_Angeles")
 writeLines(ts, OUTPUT_TS)
 cat(sprintf("  Wrote: %s  (%s)\n", OUTPUT_TS, ts))
 
