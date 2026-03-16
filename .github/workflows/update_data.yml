@@ -106,7 +106,7 @@ jobs:
             )
             rsconnect::deployApp(
               appDir         = '.',
-              appName        = 'MonthlyForecasts',
+              appName        = 'RunoffForecast',
               account        = 'waterwater',
               server         = 'shinyapps.io',
               forceUpdate    = TRUE,
