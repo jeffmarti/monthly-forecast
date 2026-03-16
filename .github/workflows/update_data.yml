@@ -2,7 +2,7 @@ name: Daily data refresh + deploy
 
 on:
   schedule:
-    - cron: '0 6 * * *'   # 6:00 UTC = 10pm/11pm PST/PDT - adjust to taste
+    - cron: '30 10 * * *' 
   workflow_dispatch:       # allows manual trigger from Actions tab
 
 permissions:
