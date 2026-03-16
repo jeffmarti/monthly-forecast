@@ -1,0 +1,118 @@
+name: Daily data refresh + deploy
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 6:00 UTC = 10pm/11pm PST/PDT - adjust to taste
+  workflow_dispatch:       # allows manual trigger from Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  update-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      R_LIBS_USER: /home/runner/work/_temp/Library
+
+    steps:
+
+      # -- 1. Checkout ---------------------------------------------------------
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+          fetch-depth: 0          # full history needed for rebase
+
+      # -- 2. Set up R ---------------------------------------------------------
+      - name: Set up R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: '4.4'
+          use-public-rspm: true
+
+      # -- 3. Cache R packages --------------------------------------------------
+      - name: Cache R packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.R_LIBS_USER }}
+          key: r-pkgs-${{ runner.os }}-v1
+          restore-keys: r-pkgs-
+
+      # -- 4. System libraries --------------------------------------------------
+      - name: Install system libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            libcurl4-openssl-dev \
+            libssl-dev \
+            libxml2-dev
+
+      # -- 5. R packages --------------------------------------------------------
+      - name: Install R packages
+        run: |
+          mkdir -p "$R_LIBS_USER"
+          Rscript -e "
+            .libPaths(c(Sys.getenv('R_LIBS_USER'), .libPaths()))
+            pkgs <- c('shiny', 'readr', 'dplyr', 'tidyr', 'stringr',
+                      'DT', 'rsconnect')
+            new <- pkgs[!(pkgs %in% rownames(installed.packages()))]
+            if (length(new)) {
+              install.packages(new,
+                lib   = Sys.getenv('R_LIBS_USER'),
+                repos = 'https://cloud.r-project.org')
+            }
+            cat('Packages ready:', paste(pkgs, collapse = ', '), '\n')
+          "
+
+      # -- 6. Run data pipeline -------------------------------------------------
+      - name: Refresh NWRFC forecast data
+        run: |
+          Rscript -e "
+            .libPaths(c(Sys.getenv('R_LIBS_USER'), .libPaths()))
+            source('update_pipeline.R')
+          "
+
+      # -- 7. Commit updated data files -----------------------------------------
+      # Uses fetch + reset --soft so freshly-written files are never treated
+      # as untracked (the Yakima lesson). force-with-lease is safe here since
+      # only this bot commits to data/.
+      - name: Commit data files
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+          git fetch origin
+          git reset --soft origin/main
+          git add data/
+          if git diff --staged --quiet; then
+            echo "No data changes - skipping commit"
+          else
+            git commit -m "chore: daily forecast refresh $(date -u +%Y-%m-%d)"
+            git push --force-with-lease origin HEAD
+          fi
+
+      # -- 8. Deploy to shinyapps.io --------------------------------------------
+      - name: Deploy to shinyapps.io
+        env:
+          SHINYAPPS_TOKEN:  ${{ secrets.SHINYAPPS_TOKEN }}
+          SHINYAPPS_SECRET: ${{ secrets.SHINYAPPS_SECRET }}
+        run: |
+          Rscript -e "
+            .libPaths(c(Sys.getenv('R_LIBS_USER'), .libPaths()))
+            rsconnect::setAccountInfo(
+              name   = 'waterwater',
+              token  = Sys.getenv('SHINYAPPS_TOKEN'),
+              secret = Sys.getenv('SHINYAPPS_SECRET')
+            )
+            rsconnect::deployApp(
+              appDir         = '.',
+              appName        = 'nwrfc-forecasts',
+              account        = 'waterwater',
+              server         = 'shinyapps.io',
+              forceUpdate    = TRUE,
+              lint           = FALSE,
+              launch.browser = FALSE
+            )
+          "
