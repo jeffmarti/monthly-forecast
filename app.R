@@ -89,12 +89,56 @@ obs_header_js <- sprintf(
 
 ui <- fluidPage(
 
-  titlePanel(HTML(paste0(
-    "Monthly Forecasted Runoff as % of Normal for Washington State Watersheds<br>",
-    "<span style='font-size:14px; font-weight:normal; color:#555;'>",
-    "Data: Northwest River Forecast Center &mdash; Data as of: ", last_updated,
-    "</span>"
-  ))),
+  # ── Polished banner ───────────────────────────────────────────────────────
+  tags$div(
+    style = paste0(
+      "background: linear-gradient(135deg, #1a3a5c 0%, #2e6da4 100%);",
+      "padding: 12px 20px;",
+      "margin-bottom: 16px;",
+      "border-radius: 6px;",
+      "display: flex;",
+      "align-items: center;",
+      "gap: 16px;"
+    ),
+    
+    # ── Icon in white circle badge ──────────────────────────────────────────
+    tags$div(
+      style = paste0(
+        "background-color: white;",
+        "border-radius: 50%;",
+        "padding: 8px;",
+        "width: 65px;",
+        "height: 65px;",
+        "display: flex;",
+        "align-items: center;",
+        "justify-content: center;",
+        "flex-shrink: 0;",
+        "box-shadow: 0 2px 8px rgba(0,0,0,0.4);"
+      ),
+      tags$img(
+        src   = "nwrfc_forecast.svg",
+        style = "width: 80px; height: 80px; object-fit: contain; display: block;"
+      )
+    ),
+    
+    # ── Title text block ────────────────────────────────────────────────────
+    tags$div(
+      tags$h2(
+        "Monthly Runoff Forecasts — Washington State Watersheds",
+        style = paste0(
+          "color: white; margin: 0;",
+          "font-size: 22px; font-weight: bold; line-height: 1.2;"
+        )
+      ),
+      tags$p(
+        paste0("NOAA Northwest River Forecast Center  |  Data as of: ", last_updated),
+        style = paste0(
+          "color: rgba(255,255,255,0.78);",
+          "margin: 4px 0 0 0; font-size: 13px;"
+        )
+      )
+    )
+  ),
 
   tags$style(HTML("
 

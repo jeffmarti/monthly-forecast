@@ -1,0 +1,53 @@
+<svg width="100%" viewBox="0 0 680 680" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>Monthly streamflow forecast icon</title>
+<desc>A circular icon showing monthly streamflow bars with a spring runoff hydrograph curve and dashed forecast extension</desc>
+
+<circle cx="340" cy="340" r="300" fill="white" stroke="#e0e8f0" stroke-width="4"/>
+
+<!-- Monthly bars — OCT through SEP, spring peak in APR/MAY -->
+<rect x="92"  y="430" width="34" height="60"  rx="3" fill="#2e6da4" opacity="0.85"/>
+<rect x="134" y="400" width="34" height="90"  rx="3" fill="#2e6da4" opacity="0.85"/>
+<rect x="176" y="390" width="34" height="100" rx="3" fill="#2e6da4" opacity="0.85"/>
+<rect x="218" y="385" width="34" height="105" rx="3" fill="#2e6da4" opacity="0.85"/>
+<rect x="260" y="370" width="34" height="120" rx="3" fill="#2e6da4" opacity="0.85"/>
+<rect x="302" y="330" width="34" height="160" rx="3" fill="#2e6da4" opacity="0.85"/>
+<rect x="344" y="200" width="34" height="290" rx="3" fill="#1a3a5c"/>
+<rect x="386" y="230" width="34" height="260" rx="3" fill="#1a3a5c"/>
+<rect x="428" y="290" width="34" height="200" rx="3" fill="#2e6da4" opacity="0.55"/>
+<rect x="470" y="380" width="34" height="110" rx="3" fill="#2e6da4" opacity="0.45"/>
+<rect x="512" y="430" width="34" height="60"  rx="3" fill="#2e6da4" opacity="0.38"/>
+<rect x="554" y="450" width="34" height="40"  rx="3" fill="#2e6da4" opacity="0.30"/>
+
+<!-- Baseline -->
+<line x1="82" y1="490" x2="598" y2="490" stroke="#1a3a5c" stroke-width="3" stroke-linecap="round"/>
+
+<!-- Hydrograph curve — observed (solid) -->
+<path d="M 109 465 C 151 440 193 410 235 400 C 277 388 295 375 319 342 C 335 318 353 210 361 207 Q 378 204 403 234"
+      fill="none" stroke="#1a3a5c" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+
+<!-- Hydrograph curve — forecast (dashed) -->
+<path d="M 403 234 C 430 270 455 300 487 385 C 510 440 535 455 571 462"
+      fill="none" stroke="#1a3a5c" stroke-width="4" stroke-linecap="round"
+      stroke-dasharray="10,7"/>
+
+<!-- Forecast dots -->
+<circle cx="445" cy="307" r="7" fill="white" stroke="#1a3a5c" stroke-width="3"/>
+<circle cx="487" cy="385" r="7" fill="white" stroke="#1a3a5c" stroke-width="3"/>
+<circle cx="529" cy="443" r="7" fill="white" stroke="#1a3a5c" stroke-width="3"/>
+<circle cx="571" cy="462" r="7" fill="white" stroke="#1a3a5c" stroke-width="3"/>
+
+<!-- Month labels -->
+<text x="109" y="515" text-anchor="middle" font-family="Arial,sans-serif" font-size="19" fill="#1a3a5c" font-weight="bold">O</text>
+<text x="151" y="515" text-anchor="middle" font-family="Arial,sans-serif" font-size="19" fill="#1a3a5c" font-weight="bold">N</text>
+<text x="193" y="515" text-anchor="middle" font-family="Arial,sans-serif" font-size="19" fill="#1a3a5c" font-weight="bold">D</text>
+<text x="235" y="515" text-anchor="middle" font-family="Arial,sans-serif" font-size="19" fill="#1a3a5c" font-weight="bold">J</text>
+<text x="277" y="515" text-anchor="middle" font-family="Arial,sans-serif" font-size="19" fill="#1a3a5c" font-weight="bold">F</text>
+<text x="319" y="515" text-anchor="middle" font-family="Arial,sans-serif" font-size="19" fill="#1a3a5c" font-weight="bold">M</text>
+<text x="361" y="515" text-anchor="middle" font-family="Arial,sans-serif" font-size="19" fill="#1a3a5c" font-weight="bold">A</text>
+<text x="403" y="515" text-anchor="middle" font-family="Arial,sans-serif" font-size="19" fill="#1a3a5c" font-weight="bold">M</text>
+<text x="445" y="515" text-anchor="middle" font-family="Arial,sans-serif" font-size="19" fill="#2e6da4" font-weight="bold" opacity="0.7">J</text>
+<text x="487" y="515" text-anchor="middle" font-family="Arial,sans-serif" font-size="19" fill="#2e6da4" font-weight="bold" opacity="0.6">J</text>
+<text x="529" y="515" text-anchor="middle" font-family="Arial,sans-serif" font-size="19" fill="#2e6da4" font-weight="bold" opacity="0.5">A</text>
+<text x="571" y="515" text-anchor="middle" font-family="Arial,sans-serif" font-size="19" fill="#2e6da4" font-weight="bold" opacity="0.45">S</text>
+
+</svg>
