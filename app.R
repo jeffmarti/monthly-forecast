@@ -141,7 +141,36 @@ ui <- fluidPage(
   ),
 
   tags$style(HTML("
+/* ---- Cap overall app width on ultra-wide monitors ------------------- */
+    .container-fluid {
+      max-width: 1600px;
+      margin: 0 auto;
+    }
 
+    /* ---- Give DT a firm width boundary to keep compact layout ----------- */
+    #forecastTable {
+      width: 100% !important;
+    }
+
+    /* ---- Sidebar: fixed width when expanded, zero when collapsed ---------- */
+    @media (min-width: 768px) {
+      .col-sm-3 {
+        width:     265px !important;
+        flex:      0 0 265px !important;
+        max-width: 265px !important;
+        transition: width 0.25s ease, max-width 0.25s ease;
+        overflow:  hidden;
+      }
+      /* ---- Cap overall app width on ultra-wide monitors ----------------------- */
+        .container-fluid {
+          max-width: 1600px;
+          margin: 0 auto;
+        }
+      .col-sm-9 {
+        width:     calc(100% - 285px) !important;
+        flex:      0 0 calc(100% - 285px) !important;
+        max-width: calc(100% - 285px) !important;
+        transition: width 0.25s ease, max-width 0.25s ease;
     /* ---- Sidebar: fixed width when expanded, zero when collapsed ---------- */
     @media (min-width: 768px) {
       .col-sm-3 {
@@ -190,15 +219,13 @@ ui <- fluidPage(
     #sidebarToggle:hover { background: #2c4f70; }
 
     /* ---- Compact DT table rows -------------------------------------------- */
-    #forecastTable table.dataTable thead th,
-    #forecastTable table.dataTable tbody td {
-      padding-top:    2px !important;
-      padding-bottom: 2px !important;
-      padding-left:   5px !important;
-      padding-right:  5px !important;
-      font-size:      12px !important;
-      line-height:    1.2 !important;
-      white-space:    nowrap !important;
+/* ---- Truncate long WRIA and Name cells ------------------------------ */
+    #forecastTable table.dataTable tbody td:nth-child(1),
+    #forecastTable table.dataTable tbody td:nth-child(2) {
+      max-width:    160px;
+      overflow:     hidden;
+      text-overflow: ellipsis;
+      white-space:  nowrap;
     }
 
     /* ---- Explain panel ---------------------------------------------------- */
@@ -337,16 +364,28 @@ server <- function(input, output, session) {
       tbl,
       rownames = FALSE,
       class    = "compact stripe",
-      options  = list(
-        pageLength     = nrow(tbl),
-        dom            = "ti",
-        scrollX        = TRUE,
-        autoWidth      = TRUE,
+      options = list(
+        pageLength   = nrow(tbl),
+        dom          = "ti",
+        scrollX      = TRUE,
+        autoWidth    = FALSE,
+        initComplete = JS("function(settings, json) { this.api().columns.adjust(); }"),
         headerCallback = JS(obs_header_js),
-        columnDefs     = list(
-          list(className = "dt-center", targets = mon_idx_0)
+        columnDefs   = list(
+          list(className = "dt-center", targets = mon_idx_0),
+          list(
+            targets     = c(0, 1),
+            createdCell = JS("function(td) {
+              $(td).css({
+                'white-space':   'nowrap',
+                'max-width':     '180px',
+                'overflow':      'hidden',
+                'text-overflow': 'ellipsis'
+              });
+            }")
+          )
         ),
-        drawCallback   = JS("function() { this.api().columns.adjust(); }")
+        drawCallback = JS("function() { this.api().columns.adjust(); }")
       )
     ) %>%
       formatPercentage(mon_cols, digits = 0) %>%
@@ -356,7 +395,6 @@ server <- function(input, output, session) {
         color           = styleInterval(COLOR_CUTS, FONT_COLORS)
       )
   })
-
   # ── Download ────────────────────────────────────────────────────────────────
   output$downloadData <- downloadHandler(
     filename = function() {
