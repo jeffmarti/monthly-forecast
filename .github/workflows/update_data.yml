@@ -99,18 +99,42 @@ jobs:
         run: |
           Rscript -e "
             .libPaths(c(Sys.getenv('R_LIBS_USER'), .libPaths()))
+            
+            # Verify credentials are set
+            if (Sys.getenv('SHINYAPPS_TOKEN') == '' || Sys.getenv('SHINYAPPS_SECRET') == '') {
+              stop('ERROR: SHINYAPPS_TOKEN or SHINYAPPS_SECRET not configured')
+            }
+            
             rsconnect::setAccountInfo(
               name   = 'waterwater',
               token  = Sys.getenv('SHINYAPPS_TOKEN'),
               secret = Sys.getenv('SHINYAPPS_SECRET')
             )
-            rsconnect::deployApp(
-              appDir         = '.',
-              appName        = 'RunoffForecast',
-              account        = 'waterwater',
-              server         = 'shinyapps.io',
-              forceUpdate    = TRUE,
-              lint           = FALSE,
-              launch.browser = FALSE
-            )
+            
+            # Retry logic for deployment
+            max_attempts <- 3
+            attempt <- 1
+            
+            while (attempt <= max_attempts) {
+              tryCatch({
+                rsconnect::deployApp(
+                  appDir         = '.',
+                  appName        = 'RunoffForecast',
+                  account        = 'waterwater',
+                  server         = 'shinyapps.io',
+                  forceUpdate    = TRUE,
+                  lint           = FALSE,
+                  launch.browser = FALSE
+                )
+                cat('Deployment succeeded on attempt', attempt, '\n')
+                break
+              }, error = function(e) {
+                cat('Deployment attempt', attempt, 'failed:', conditionMessage(e), '\n')
+                if (attempt == max_attempts) {
+                  stop('Deployment failed after', max_attempts, 'attempts')
+                }
+                Sys.sleep(30)
+              })
+              attempt <- attempt + 1
+            }
           "
