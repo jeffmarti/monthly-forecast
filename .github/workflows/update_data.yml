@@ -2,7 +2,7 @@ name: Daily data refresh + deploy
 
 on:
   schedule:
-    - cron: '30 10 * * *' 
+    - cron: '30 10 * * *'
   workflow_dispatch:       # allows manual trigger from Actions tab
 
 permissions:
@@ -33,12 +33,14 @@ jobs:
           use-public-rspm: true
 
       # -- 3. Cache R packages --------------------------------------------------
+      # Key bumped v2 -> v3 so the old cached library (with an older rsconnect
+      # that cannot talk to Connect Cloud) is not reused.
       - name: Cache R packages
         uses: actions/cache@v4
         with:
           path: ${{ env.R_LIBS_USER }}
-          key: r-pkgs-${{ runner.os }}-v2
-          restore-keys: r-pkgs-
+          key: r-pkgs-${{ runner.os }}-v3
+          restore-keys: r-pkgs-${{ runner.os }}-v3
 
       # -- 4. System libraries --------------------------------------------------
       - name: Install system libraries
@@ -63,7 +65,14 @@ jobs:
                 lib   = Sys.getenv('R_LIBS_USER'),
                 repos = 'https://cloud.r-project.org')
             }
+            # Connect Cloud needs a recent rsconnect - upgrade if the cached copy is old
+            if (packageVersion('rsconnect') < '1.6.0') {
+              install.packages('rsconnect',
+                lib   = Sys.getenv('R_LIBS_USER'),
+                repos = 'https://cloud.r-project.org')
+            }
             cat('Packages ready:', paste(pkgs, collapse = ', '), '\n')
+            cat('rsconnect version:', as.character(packageVersion('rsconnect')), '\n')
           "
 
       # -- 6. Run data pipeline -------------------------------------------------
@@ -91,50 +100,89 @@ jobs:
             git push --force-with-lease origin HEAD
           fi
 
-      # -- 8. Deploy to shinyapps.io --------------------------------------------
-      - name: Deploy to shinyapps.io
+      # -- 8. Deploy to Posit Connect Cloud -------------------------------------
+      # Secrets (Settings > Secrets and variables > Actions > Secrets tab):
+      #   CONNECT_CLOUD_CLIENT_ID, CONNECT_CLOUD_CLIENT_SECRET
+      # Plain values below (not secret) - EDIT THESE TWO LINES:
+      #   CONNECT_ACCOUNT    = your Connect Cloud account name (from the URL
+      #                        https://connect.posit.cloud/<account>/content/<id>)
+      #   CONNECT_CONTENT_ID = the long ID at the end of that same URL
+      - name: Deploy to Posit Connect Cloud
         env:
-          SHINYAPPS_TOKEN:  ${{ secrets.SHINYAPPS_TOKEN }}
-          SHINYAPPS_SECRET: ${{ secrets.SHINYAPPS_SECRET }}
+          CONNECT_CLIENT_ID:     ${{ secrets.CONNECT_CLOUD_CLIENT_ID }}
+          CONNECT_CLIENT_SECRET: ${{ secrets.CONNECT_CLOUD_CLIENT_SECRET }}
+          CONNECT_ACCOUNT:       'waterwater'
+          CONNECT_CONTENT_ID:    '01a10eaa-9c2c-944e-d429-86da43e48d37'
+          APP_NAME:              'RunoffForecast'
         run: |
           Rscript -e "
             .libPaths(c(Sys.getenv('R_LIBS_USER'), .libPaths()))
-            
-            # Verify credentials are set
-            if (Sys.getenv('SHINYAPPS_TOKEN') == '' || Sys.getenv('SHINYAPPS_SECRET') == '') {
-              stop('ERROR: SHINYAPPS_TOKEN or SHINYAPPS_SECRET not configured')
+
+            # Verify credentials and settings are present
+            if (Sys.getenv('CONNECT_CLIENT_ID') == '' || Sys.getenv('CONNECT_CLIENT_SECRET') == '') {
+              stop('ERROR: CONNECT_CLOUD_CLIENT_ID or CONNECT_CLOUD_CLIENT_SECRET not configured')
             }
-            
-            rsconnect::setAccountInfo(
-              name   = 'waterwater',
-              token  = Sys.getenv('SHINYAPPS_TOKEN'),
-              secret = Sys.getenv('SHINYAPPS_SECRET')
+            if (grepl('^REPLACE', Sys.getenv('CONNECT_ACCOUNT')) ||
+                grepl('^REPLACE', Sys.getenv('CONNECT_CONTENT_ID'))) {
+              stop('ERROR: edit CONNECT_ACCOUNT and CONNECT_CONTENT_ID in the workflow file')
+            }
+
+            account    <- Sys.getenv('CONNECT_ACCOUNT')
+            content_id <- Sys.getenv('CONNECT_CONTENT_ID')
+            app_name   <- Sys.getenv('APP_NAME')
+            server     <- 'connect.posit.cloud'
+
+            # Register Connect Cloud credentials on this (temporary) runner
+            rsconnect::connectCloudClientCredentials(
+              clientId     = Sys.getenv('CONNECT_CLIENT_ID'),
+              clientSecret = Sys.getenv('CONNECT_CLIENT_SECRET'),
+              accountName  = account,
+              name         = NULL
             )
-            
+
+            # Build a deployment record so deployApp() updates the EXISTING
+            # migrated app instead of creating a new one. This file lives only
+            # on the runner - it is never committed (step 7 only adds data/).
+            rec_dir <- file.path('rsconnect', server, account)
+            dir.create(rec_dir, recursive = TRUE, showWarnings = FALSE)
+            writeLines(c(
+              paste0('name: ',     app_name),
+              paste0('title: ',    app_name),
+              paste0('username: ', account),
+              paste0('account: ',  account),
+              paste0('server: ',   server),
+              paste0('hostUrl: https://api.', server, '/v1'),
+              paste0('appId: ',    content_id)
+            ), file.path(rec_dir, paste0(app_name, '.dcf')))
+
             # Retry logic for deployment
             max_attempts <- 3
             attempt <- 1
-            
+
             while (attempt <= max_attempts) {
-              tryCatch({
+              ok <- tryCatch({
                 rsconnect::deployApp(
                   appDir         = '.',
-                  appName        = 'RunoffForecast',
-                  account        = 'waterwater',
-                  server         = 'shinyapps.io',
+                  appId          = content_id,
+                  account        = account,
+                  server         = server,
                   forceUpdate    = TRUE,
                   lint           = FALSE,
                   launch.browser = FALSE
                 )
-                cat('Deployment succeeded on attempt', attempt, '\n')
-                break
+                TRUE
               }, error = function(e) {
                 cat('Deployment attempt', attempt, 'failed:', conditionMessage(e), '\n')
-                if (attempt == max_attempts) {
-                  stop('Deployment failed after', max_attempts, 'attempts')
-                }
-                Sys.sleep(30)
+                FALSE
               })
+              if (ok) {
+                cat('Deployment succeeded on attempt', attempt, '\n')
+                break
+              }
+              if (attempt == max_attempts) {
+                stop('Deployment failed after ', max_attempts, ' attempts')
+              }
+              Sys.sleep(30)
               attempt <- attempt + 1
             }
           "
