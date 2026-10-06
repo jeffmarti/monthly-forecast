@@ -2,120 +2,126 @@ name: Daily data refresh + deploy
 
 on:
   schedule:
-  - cron: '30 10 * * *'
-workflow_dispatch:       # allows manual trigger from Actions tab
-  
-  permissions:
+    - cron: '30 10 * * *'
+  workflow_dispatch:       # allows manual trigger from Actions tab
+
+permissions:
   contents: write
 
 jobs:
   update-and-deploy:
-  runs-on: ubuntu-latest
-timeout-minutes: 45
-env:
-  R_LIBS_USER: /home/runner/work/_temp/Library
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      R_LIBS_USER: /home/runner/work/_temp/Library
 
-steps:
-  
-  # -- 1. Checkout ---------------------------------------------------------
-- name: Checkout repo
-uses: actions/checkout@v4
-with:
-  token: ${{ secrets.GITHUB_TOKEN }}
-persist-credentials: true
-fetch-depth: 0          # full history needed for rebase
+    steps:
 
-# -- 2. Set up R ---------------------------------------------------------
-- name: Set up R
-uses: r-lib/actions/setup-r@v2
-with:
-  r-version: '4.4'
-use-public-rspm: true
+      # -- 1. Checkout ---------------------------------------------------------
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+          fetch-depth: 0          # full history needed for rebase
 
-# -- 3. Cache R packages --------------------------------------------------
-# Key bumped v2 -> v3 so the old cached library (with an older rsconnect
-# that cannot talk to Connect Cloud) is not reused.
-- name: Cache R packages
-uses: actions/cache@v4
-with:
-  path: ${{ env.R_LIBS_USER }}
-key: r-pkgs-${{ runner.os }}-v3
-restore-keys: r-pkgs-${{ runner.os }}-v3
+      # -- 2. Set up R ---------------------------------------------------------
+      - name: Set up R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: '4.4'
+          use-public-rspm: true
 
-# -- 4. System libraries --------------------------------------------------
-- name: Install system libraries
-run: |
-  sudo apt-get update -qq
-sudo apt-get install -y \
-libcurl4-openssl-dev \
-libssl-dev \
-libxml2-dev
+      # -- 3. Cache R packages --------------------------------------------------
+      # Key bumped to v4: the v3 cache was saved with shiny/DT missing
+      # (they failed to compile from source), so start clean.
+      - name: Cache R packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.R_LIBS_USER }}
+          key: r-pkgs-${{ runner.os }}-v4
+          restore-keys: r-pkgs-${{ runner.os }}-v4
 
-# -- 5. R packages --------------------------------------------------------
-- name: Install R packages
-run: |
-  mkdir -p "$R_LIBS_USER"
-Rscript -e "
+      # -- 4. System libraries --------------------------------------------------
+      - name: Install system libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            libcurl4-openssl-dev \
+            libssl-dev \
+            libxml2-dev
+
+      # -- 5. R packages --------------------------------------------------------
+      # Installs PRE-BUILT Linux binaries from Posit Package Manager (set up by
+      # 'use-public-rspm: true' in step 2). Do NOT pass repos = cloud.r-project.org:
+      # that forces slow source compiles, and 'fs' failed to compile, which
+      # silently took shiny and DT down with it.
+      - name: Install R packages
+        run: |
+          mkdir -p "$R_LIBS_USER"
+          Rscript -e "
             .libPaths(c(Sys.getenv('R_LIBS_USER'), .libPaths()))
+            cat('Using repos:', getOption('repos'), '\n')
             pkgs <- c('shiny', 'readr', 'dplyr', 'tidyr', 'stringr', 'lubridate',
                       'DT', 'rsconnect')
             new <- pkgs[!(pkgs %in% rownames(installed.packages()))]
             if (length(new)) {
-              install.packages(new,
-                lib   = Sys.getenv('R_LIBS_USER'),
-                repos = 'https://cloud.r-project.org')
+              install.packages(new, lib = Sys.getenv('R_LIBS_USER'))
             }
             # Connect Cloud needs a recent rsconnect - upgrade if the cached copy is old
             if (packageVersion('rsconnect') < '1.6.0') {
-              install.packages('rsconnect',
-                lib   = Sys.getenv('R_LIBS_USER'),
-                repos = 'https://cloud.r-project.org')
+              install.packages('rsconnect', lib = Sys.getenv('R_LIBS_USER'))
+            }
+            # FAIL the step if any package did not install (install.packages only warns)
+            missing <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
+            if (length(missing)) {
+              stop('These packages failed to install: ', paste(missing, collapse = ', '))
             }
             cat('Packages ready:', paste(pkgs, collapse = ', '), '\n')
             cat('rsconnect version:', as.character(packageVersion('rsconnect')), '\n')
           "
 
-# -- 6. Run data pipeline -------------------------------------------------
-- name: Refresh NWRFC forecast data
-run: |
-  export R_LIBS_USER="${R_LIBS_USER}"
-Rscript update_pipeline.R
+      # -- 6. Run data pipeline -------------------------------------------------
+      - name: Refresh NWRFC forecast data
+        run: |
+          export R_LIBS_USER="${R_LIBS_USER}"
+          Rscript update_pipeline.R
 
-# -- 7. Commit updated data files -----------------------------------------
-# Uses fetch + reset --soft so freshly-written files are never treated
-# as untracked (the Yakima lesson). force-with-lease is safe here since
-# only this bot commits to data/.
-- name: Commit data files
-run: |
-  git config user.name  "github-actions[bot]"
-git config user.email "github-actions[bot]@users.noreply.github.com"
-git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
-git fetch origin
-git reset --soft origin/main
-git add data/
-  if git diff --staged --quiet; then
-echo "No data changes - skipping commit"
-else
-  git commit -m "chore: daily forecast refresh $(date -u +%Y-%m-%d)"
-git push --force-with-lease origin HEAD
-fi
+      # -- 7. Commit updated data files -----------------------------------------
+      # Uses fetch + reset --soft so freshly-written files are never treated
+      # as untracked (the Yakima lesson). force-with-lease is safe here since
+      # only this bot commits to data/.
+      - name: Commit data files
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+          git fetch origin
+          git reset --soft origin/main
+          git add data/
+          if git diff --staged --quiet; then
+            echo "No data changes - skipping commit"
+          else
+            git commit -m "chore: daily forecast refresh $(date -u +%Y-%m-%d)"
+            git push --force-with-lease origin HEAD
+          fi
 
-# -- 8. Deploy to Posit Connect Cloud -------------------------------------
-# Secrets (Settings > Secrets and variables > Actions > Secrets tab):
-#   CONNECT_CLOUD_CLIENT_ID, CONNECT_CLOUD_CLIENT_SECRET
-# Plain values below (not secret) - EDIT THESE TWO LINES:
-#   CONNECT_ACCOUNT    = your Connect Cloud account name (from the URL
-#                        https://connect.posit.cloud/<account>/content/<id>)
-#   CONNECT_CONTENT_ID = the long ID at the end of that same URL
-- name: Deploy to Posit Connect Cloud
-env:
-  CONNECT_CLIENT_ID:     ${{ secrets.CONNECT_CLOUD_CLIENT_ID }}
-CONNECT_CLIENT_SECRET: ${{ secrets.CONNECT_CLOUD_CLIENT_SECRET }}
-CONNECT_ACCOUNT:       'waterwater'
-CONNECT_CONTENT_ID:    '01a10eaa-9c2c-944e-d429-86da43e48d37'
-APP_NAME:              'RunoffForecast'
-run: |
-  Rscript -e "
+      # -- 8. Deploy to Posit Connect Cloud -------------------------------------
+      # Secrets (Settings > Secrets and variables > Actions > Secrets tab):
+      #   CONNECT_CLOUD_CLIENT_ID, CONNECT_CLOUD_CLIENT_SECRET
+      # Plain values below (not secret) - EDIT THESE TWO LINES:
+      #   CONNECT_ACCOUNT    = your Connect Cloud account name (from the URL
+      #                        https://connect.posit.cloud/<account>/content/<id>)
+      #   CONNECT_CONTENT_ID = the long ID at the end of that same URL
+      - name: Deploy to Posit Connect Cloud
+        env:
+          CONNECT_CLIENT_ID:     ${{ secrets.CONNECT_CLOUD_CLIENT_ID }}
+          CONNECT_CLIENT_SECRET: ${{ secrets.CONNECT_CLOUD_CLIENT_SECRET }}
+          CONNECT_ACCOUNT:       'waterwater'
+          CONNECT_CONTENT_ID:    '01a10eaa-9c2c-944e-d429-86da43e48d37'
+          APP_NAME:              'RunoffForecast'
+        run: |
+          Rscript -e "
             .libPaths(c(Sys.getenv('R_LIBS_USER'), .libPaths()))
 
             # Verify credentials and settings are present
@@ -160,8 +166,10 @@ run: |
             attempt <- 1
 
             while (attempt <= max_attempts) {
+              # deployApp() returns TRUE/FALSE instead of throwing an error when
+              # the app fails to START on the server, so check its return value.
               ok <- tryCatch({
-                rsconnect::deployApp(
+                result <- rsconnect::deployApp(
                   appDir         = '.',
                   appId          = content_id,
                   account        = account,
@@ -170,7 +178,7 @@ run: |
                   lint           = FALSE,
                   launch.browser = FALSE
                 )
-                TRUE
+                isTRUE(result)
               }, error = function(e) {
                 cat('Deployment attempt', attempt, 'failed:', conditionMessage(e), '\n')
                 FALSE
