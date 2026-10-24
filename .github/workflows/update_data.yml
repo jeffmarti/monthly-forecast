@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   update-and-deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       R_LIBS_USER: /home/runner/work/_temp/Library
