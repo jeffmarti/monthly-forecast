@@ -1,7 +1,7 @@
-Pipeline run:      2026-11-13 10:02 PST
+Pipeline run:      2026-11-14 08:44 PST
 Water year:        2027
-Stations fetched:  119/127
+Stations fetched:  123/127
 Months present:    OCT, NOV, DEC, JAN, FEB, MAR, APR, MAY, JUN, JUL, AUG, SEP
 Observed months:   OCT, NOV
 Forecast months:   DEC, JAN, FEB, MAR, APR, MAY, JUN, JUL, AUG, SEP
-Failed stations:   SATW1, FFXW1, SNQW1, SMRW1, HAGW1, CHDW1, TCHW1, KEEW1
+Failed stations:   MNSW1, SPOW1, HAGW1, RISW1
