@@ -1,4 +1,4 @@
-Pipeline run:      2026-11-20 10:43 PST
+Pipeline run:      2026-11-21 09:43 PST
 Water year:        2027
 Stations fetched:  127/127
 Months present:    OCT, NOV, DEC, JAN, FEB, MAR, APR, MAY, JUN, JUL, AUG, SEP
